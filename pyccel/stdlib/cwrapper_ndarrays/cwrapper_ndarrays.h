@@ -1,7 +1,7 @@
-/* --------------------------------------------------------------------------------------- */
-/* This file is part of Pyccel which is released under MIT License. See the LICENSE file   */
-/* or go to https://github.com/pyccel/pyccel/blob/master/LICENSE for full license details. */
-/* --------------------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------------------- */
+/* This file is part of Pyccel which is released under MIT License. See the LICENSE file  */
+/* or go to https://github.com/pyccel/pyccel/blob/devel/LICENSE for full license details. */
+/* -------------------------------------------------------------------------------------- */
 
 /*
  * File containing functions useful for the cwrapper which require ndarrays.
@@ -44,7 +44,7 @@ PyObject* fortran_ndarray_to_pyarray(t_ndarray o);
 
 
 /* arrays checkers and helpers */
-bool	pyarray_check(PyObject *o, int dtype, int rank, int flag);
+bool	pyarray_check(char* name, PyObject *o, int dtype, int rank, int flag);
 bool	is_numpy_array(PyObject *o, int dtype, int rank, int flag);
 
 void    *nd_data(t_ndarray *a);

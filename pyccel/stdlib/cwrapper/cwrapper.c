@@ -1,18 +1,9 @@
-/* --------------------------------------------------------------------------------------- */
-/* This file is part of Pyccel which is released under MIT License. See the LICENSE file   */
-/* or go to https://github.com/pyccel/pyccel/blob/master/LICENSE for full license details. */
-/* --------------------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------------------- */
+/* This file is part of Pyccel which is released under MIT License. See the LICENSE file  */
+/* or go to https://github.com/pyccel/pyccel/blob/devel/LICENSE for full license details. */
+/* -------------------------------------------------------------------------------------- */
 
 #include "cwrapper.h"
-
-
-
-// strings order needs to be the same as its equivalent numpy macro
-// https://numpy.org/doc/stable/reference/c-api/dtype.html
-const char* dataTypes[17] = {"Bool", "Int8", "UInt8", "Int16", "UIn16", "Int32", "UInt32",
-                             "Int64", "UInt64", "Int128", "UInt128", "Float32", "Float64",
-                             "Float128", "Complex64", "Complex128", "Complex256"};
-
 
 
 
@@ -134,3 +125,104 @@ PyObject	*Float_to_NumpyDouble(float *d)
 {
     return PyArray_Scalar(d, PyArray_DescrFromType(NPY_FLOAT), NULL);
 }
+
+
+/*
+ * Functions : Numpy array handling functions
+ */
+
+void get_strides_and_shape_from_numpy_array(PyObject* arr, int64_t shape[], int64_t strides[])
+{
+    PyArrayObject* a = (PyArrayObject*)(arr);
+    int nd = PyArray_NDIM(a);
+
+    PyArrayObject* base = (PyArrayObject*)PyArray_BASE(a);
+
+    if (base == NULL) {
+        npy_intp* np_shape = PyArray_SHAPE(a);
+        for (int i = 0; i < nd; ++i) {
+            shape[i] = np_shape[i];
+            strides[i] = 1;
+        }
+    }
+    else {
+        npy_intp current_stride = PyArray_ITEMSIZE(a);
+        npy_intp* np_strides = PyArray_STRIDES(a);
+        npy_intp* np_shape = PyArray_SHAPE(a);
+        if (PyArray_CHKFLAGS(a, NPY_ARRAY_C_CONTIGUOUS)) {
+            for (int i = nd-1; i >= 0; --i) {
+                shape[i] = np_shape[i];
+                strides[i] = np_strides[i] / current_stride;
+                current_stride *= shape[i];
+            }
+        }
+        else {
+            for (int i = 0; i < nd; ++i) {
+                shape[i] = np_shape[i];
+                strides[i] = np_strides[i] / current_stride;
+                current_stride *= shape[i];
+            }
+        }
+    }
+}
+
+void capsule_cleanup(PyObject *capsule) {
+    void *memory = PyCapsule_GetPointer(capsule, NULL);
+    // TODO: Correct free method. See #2001
+#ifndef __INTEL_LLVM_COMPILER
+    free(memory);
+#endif
+}
+
+#if defined(WIN32) && (PyArray_RUNTIME_VERSION >= NPY_2_0_API_VERSION)
+PyObject* to_pyarray(int nd, enum NPY_TYPES typenum, void* data, int32_t shape[], bool c_order, bool release_memory)
+#else
+PyObject* to_pyarray(int nd, enum NPY_TYPES typenum, void* data, int64_t shape[], bool c_order, bool release_memory)
+#endif
+{
+    int FLAGS;
+    if (nd == 1) {
+        FLAGS = NPY_ARRAY_F_CONTIGUOUS | NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE;
+    }
+    else if (c_order) {
+        FLAGS = NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE;
+    }
+    else {
+        FLAGS = NPY_ARRAY_F_CONTIGUOUS | NPY_ARRAY_WRITEABLE;
+    }
+
+    npy_intp npy_shape[nd];
+
+    for (int i=0; i<nd; ++i) {
+        npy_shape[i] = shape[i];
+    }
+
+    PyObject* arr = PyArray_NewFromDescr(&PyArray_Type, PyArray_DescrFromType(typenum),
+                                         nd, npy_shape, NULL, data, FLAGS, NULL);
+    if (release_memory) {
+        // Add a capsule base to ensure that memory is freed.
+        PyObject* base = PyCapsule_New(data, NULL, capsule_cleanup);
+        PyArray_SetBaseObject((PyArrayObject*)arr, base);
+    }
+    return arr;
+}
+
+extern inline int64_t	PyInt64_to_Int64(PyObject *object);
+extern inline int32_t	PyInt32_to_Int32(PyObject *object);
+extern inline int16_t	PyInt16_to_Int16(PyObject *object);
+extern inline int8_t	PyInt8_to_Int8(PyObject *object);
+extern inline bool	PyBool_to_Bool(PyObject *object);
+extern inline float	PyFloat_to_Float(PyObject *object);
+extern inline double	PyDouble_to_Double(PyObject *object);
+extern inline bool    PyIs_NativeInt(PyObject *o);
+extern inline bool    PyIs_Int8(PyObject *o);
+extern inline bool    PyIs_Int16(PyObject *o);
+extern inline bool    PyIs_Int32(PyObject *o);
+extern inline bool    PyIs_Int64(PyObject *o);
+extern inline bool    PyIs_NativeFloat(PyObject *o);
+extern inline bool    PyIs_Float(PyObject *o);
+extern inline bool    PyIs_Double(PyObject *o);
+extern inline bool    PyIs_Bool(PyObject *o);
+extern inline bool    PyIs_NativeComplex(PyObject *o);
+extern inline bool    PyIs_Complex128(PyObject *o);
+extern inline bool    PyIs_Complex64(PyObject *o);
